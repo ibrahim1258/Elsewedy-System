@@ -2,8 +2,8 @@ import { useEffect, useState, type FormEvent } from "react";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 
 import { BootScreen, Button, Field, Input } from "@/components/ui";
-import { academyStatus, resolveLogin } from "@/lib/academy.fn";
-import { GROK_PROVIDERS, authClient, signIn } from "@/lib/auth/client";
+import { resolveLogin } from "@/lib/academy.fn";
+import { authClient } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 
 export const Route = createFileRoute("/login")({ component: LoginPage });
@@ -32,29 +32,12 @@ function authText(message?: string) {
 function LoginPage() {
   const { user, isPending } = useCurrentUserState();
   const [mounted, setMounted] = useState(false);
-  const [hasAdmin, setHasAdmin] = useState<boolean | null>(null);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [signupPassword, setSignupPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => setMounted(true), []);
-  useEffect(() => {
-    let alive = true;
-    academyStatus()
-      .then((status) => {
-        if (alive) setHasAdmin(status.hasAdmin);
-      })
-      .catch(() => {
-        if (alive) setHasAdmin(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   if (!mounted || isPending) return <BootScreen />;
   if (user) return <Navigate to="/" />;
@@ -81,29 +64,6 @@ function LoginPage() {
       window.location.assign("/");
     } catch {
       setError("تعذر تسجيل الدخول");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onSignup(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const result = await authClient.signUp.email({
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-        password: signupPassword,
-        fetchOptions: { onSuccess: captureSessionToken },
-      });
-      if (result.error) {
-        setError(authText(result.error.message));
-        return;
-      }
-      window.location.assign("/");
-    } catch {
-      setError("تعذر إنشاء الحساب");
     } finally {
       setBusy(false);
     }
@@ -140,53 +100,7 @@ function LoginPage() {
             دخول
           </Button>
         </form>
-        {hasAdmin === false ? (
-          <form className="mt-6 space-y-4 border-t border-line pt-5" onSubmit={onSignup}>
-            <h2 className="text-lg font-semibold">أول حساب مدير</h2>
-            <p className="text-sm text-muted">أول شخص يسجّل يصبح المدير، وبعدها ينشئ حسابات المدرسين والطلاب.</p>
-            <Field label="الاسم">
-              <Input value={name} onChange={(event) => setName(event.target.value)} required />
-            </Field>
-            <Field label="البريد">
-              <Input
-                dir="ltr"
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-              />
-            </Field>
-            <Field label="كلمة المرور">
-              <Input
-                dir="ltr"
-                type="password"
-                autoComplete="new-password"
-                minLength={8}
-                value={signupPassword}
-                onChange={(event) => setSignupPassword(event.target.value)}
-                required
-              />
-            </Field>
-            <Button className="w-full" type="submit" variant="ghost" disabled={busy}>
-              إنشاء حساب المدير
-            </Button>
-          </form>
-        ) : (
-          <p className="mt-5 text-sm text-muted">حسابات الطلاب والمدرسين يصدرها المدير من داخل المنصة.</p>
-        )}
-        <div className="mt-5 space-y-2 border-t border-line pt-5">
-          {GROK_PROVIDERS.map((provider) => (
-            <Button
-              key={provider.providerId}
-              className="w-full"
-              variant="ghost"
-              onClick={() => void signIn(provider.providerId, { callbackURL: "/" })}
-            >
-              المتابعة عبر {provider.label}
-            </Button>
-          ))}
-        </div>
+        <p className="mt-5 text-sm text-muted">حسابات الطلاب والمدرسين يصدرها المدير من داخل المنصة.</p>
       </div>
     </main>
   );

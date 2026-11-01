@@ -190,13 +190,43 @@ async function assertGroup(sql: Sql, groupId: string) {
   if (!rows.length) throw new Error("المجموعة غير موجودة");
 }
 
+let bootstrapDone = false;
+async function ensureBootstrapAdmin(): Promise<void> {
+  if (bootstrapDone) return;
+  const password = process.env.ADMIN_BOOTSTRAP_PASSWORD ?? "";
+  try {
+    const sql = await getSql();
+    const admins = await sql`select user_id from profiles where role = 'admin' limit 1`;
+    if (admins.length) {
+      bootstrapDone = true;
+      return;
+    }
+    if (password.length < 8) return;
+    const username = (process.env.ADMIN_BOOTSTRAP_USERNAME ?? "islam").trim().toLowerCase();
+    const email = mailFor(username);
+    const clash = await sql`select id from "user" where email = ${email}`;
+    if (clash.length) return;
+    const id = await createCredentialUser(sql, { name: "إسلام", email, password });
+    await sql`
+      insert into profiles (user_id, role, username, synthetic)
+      values (${id}, 'admin', ${username}, true)
+      on conflict (user_id) do nothing
+    `;
+    bootstrapDone = true;
+  } catch {
+    /* another instance may have created it first */
+  }
+}
+
 export async function getAcademyStatus(): Promise<{ hasAdmin: boolean }> {
+  await ensureBootstrapAdmin();
   const sql = await getSql();
   const rows = await sql`select user_id from profiles where role = 'admin' limit 1`;
   return { hasAdmin: rows.length > 0 };
 }
 
 export async function resolveLoginEmail(identifier: string): Promise<{ email: string | null }> {
+  await ensureBootstrapAdmin();
   const sql = await getSql();
   const id = identifier.trim().toLowerCase();
   if (!id || id.length > 120) return { email: null };
